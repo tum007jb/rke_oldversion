@@ -1,0 +1,71 @@
+# rke-deployment/roles/rke_cluster/tasks/main.yml
+---
+- name: Ensure RKE binary directory exists
+  ansible.builtin.file:
+    path: /usr/local/bin
+    state: directory
+    mode: '0755'
+
+- name: Download RKE binary
+  ansible.builtin.get_url:
+    url: "https://github.com/rancher/rke/releases/download/{{ rke_binary_version }}/rke_linux-amd64"
+    dest: /usr/local/bin/rke
+    mode: '0755'
+    checksum: "sha256:{{ lookup('url', 'https://github.com/rancher/rke/releases/download/{{ rke_binary_version }}/rke_linux-amd64.sha256sum', wantlist=True)[0].split(' ')[0] }}" # Auto-detect checksum
+
+- name: Ensure .kube directory exists for ansible user
+  ansible.builtin.file:
+    path: ~/.kube
+    state: directory
+    mode: '0700'
+
+- name: Create RKE cluster.yml configuration from template
+  ansible.builtin.template:
+    src: cluster.yml.j2
+    dest: ./cluster.yml
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
+    mode: '0600'
+
+- name: Run RKE to deploy the cluster
+  ansible.builtin.command: rke up --config cluster.yml
+  args:
+    chdir: .
+  register: rke_up_output
+  changed_when: "true" # RKE up always returns 0 even if no changes, so assume change
+  tags:
+    - deploy_rke
+
+- name: Display RKE up output
+  ansible.builtin.debug:
+    var: rke_up_output.stdout_lines
+
+- name: Fetch kubeconfig file from RKE CLI host
+  ansible.builtin.fetch:
+    src: "./kube_config_{{ cluster_name }}.yml"
+    dest: "~/.kube/config" # Path on local Ansible control machine
+    flat: yes # Ensure it's not nested in a directory named after the host
+  delegate_to: localhost
+  become: no # Do not use sudo for fetching
+  when: rke_up_output.rc == 0
+
+- name: Set correct permissions for kubeconfig
+  ansible.builtin.file:
+    path: "~/.kube/config"
+    mode: '0600'
+  delegate_to: localhost
+  become: no
+
+- name: Verify Kubernetes cluster status
+  ansible.builtin.command: kubectl get nodes
+  environment:
+    KUBECONFIG: "~/.kube/config"
+  delegate_to: localhost
+  become: no
+  register: kubectl_get_nodes_output
+  changed_when: false
+  failed_when: "kubectl_get_nodes_output.rc != 0 or 'NotReady' in kubectl_get_nodes_output.stdout"
+
+- name: Display Kubernetes nodes
+  ansible.builtin.debug:
+    var: kubectl_get_nodes_output.stdout_lines

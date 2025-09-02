@@ -1,0 +1,81 @@
+# rke-deployment/roles/load_balancer/templates/haproxy.cfg.j2
+global
+  log         /dev/log local0
+  log-format  %H\ %T\ %U\ %{+Q}r
+  chroot      /var/lib/haproxy
+  pidfile     /var/run/haproxy.pid
+  maxconn     4000
+  user        haproxy
+  group       haproxy
+  daemon
+
+defaults
+  mode                    http
+  log                     global
+  option                  httplog
+  option                  dontlognull
+  option http-server-close
+  option                  redispatch
+  retries                 3
+  timeout http-request    10s
+  timeout queue           1m
+  timeout connect         10s
+  timeout client          1m
+  timeout server          1m
+  timeout http-keep-alive 10s
+  timeout check           10s
+  maxconn                 3000
+
+listen kubernetes-api
+  bind *:6443
+  mode tcp
+  option tcplog
+  balance roundrobin
+  default-backend kubernetes-api-backend
+
+backend kubernetes-api-backend
+  mode tcp
+  balance roundrobin
+  option tcp-check
+{% for host in groups['rke_masters'] %}
+  server {{ host }} {{ hostvars[host]['ansible_host'] }}:6443 check fall 3 rise 2
+{% endfor %}
+
+listen stats
+  bind *:9000
+  mode http
+  stats enable
+  stats uri /haproxy_stats
+  stats realm Haproxy\ Statistics
+  stats auth admin:password123 # CHANGE THIS IN PRODUCTION
+
+# For Ingress (Optional: if HAProxy is also doing L7 for your applications)
+# listen ingress-http
+#   bind *:80
+#   mode http
+#   option httplog
+#   balance roundrobin
+#   default_backend ingress_http_backend
+#
+# backend ingress_http_backend
+#   mode http
+#   balance roundrobin
+#   # This assumes your Ingress controller is listening on port 80 on all master/worker nodes
+#   {% for host in groups['rke_nodes'] %}
+#   server {{ host }} {{ hostvars[host]['ansible_host'] }}:80 check
+#   {% endfor %}
+#
+# listen ingress-https
+#   bind *:443
+#   mode tcp # Usually TCP for HTTPS, unless you have HAProxy doing SSL termination
+#   option tcplog
+#   balance roundrobin
+#   default_backend ingress_https_backend
+#
+# backend ingress_https_backend
+#   mode tcp
+#   balance roundrobin
+#   # This assumes your Ingress controller is listening on port 443 on all master/worker nodes
+#   {% for host in groups['rke_nodes'] %}
+#   server {{ host }} {{ hostvars[host]['ansible_host'] }}:443 check
+#   {% endfor %}
