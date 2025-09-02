@@ -5,5 +5,5 @@
   become: yes
   roles:
     - common
-    - container_runtime
-    - k8s_prereqs
+    #- container_runtime
+    #- k8s_prereqs
