@@ -1,7 +1,0 @@
-# rke-deployment/playbooks/deploy_rke_cluster.yml
----
-- name: Deploy RKE Cluster
-  hosts: rke_cli_host
-  become: yes
-  roles:
-    - rke_cluster

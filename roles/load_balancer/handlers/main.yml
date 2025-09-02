@@ -1,6 +1,0 @@
-# rke-deployment/roles/load_balancer/handlers/main.yml
----
-- name: Restart haproxy
-  ansible.builtin.systemd:
-    name: haproxy
-    state: restarted

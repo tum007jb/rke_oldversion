@@ -1,8 +1,0 @@
-# rke-deployment/playbooks/setup_load_balancer.yml
----
-- name: Setup Load Balancer (HAProxy)
-  hosts: load_balancer
-  become: yes
-  roles:
-    - common # Run common tasks like SSH, NTP
-    - load_balancer

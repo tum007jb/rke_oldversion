@@ -1,9 +1,0 @@
-# rke-deployment/playbooks/setup_rhel_nodes.yml
----
-- name: Setup RHEL Nodes for RKE
-  hosts: rke_nodes
-  become: yes
-  roles:
-    - common
-    #- container_runtime
-    #- k8s_prereqs
